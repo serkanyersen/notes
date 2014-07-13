@@ -1,0 +1,43 @@
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #f5f5f5;
+}
+.table {
+    margin: 0 !important;
+}
+.list-group {
+    width: 180px
+}
+.notes {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+}
+
+.notes:hover > .remove-note{
+    display: block;
+}
+
+.remove-note {
+    position: absolute;
+    right: 5px;
+    top: 11px;
+    display: none;
+}
+.editor-container {
+    position: relative;
+    height: 100%;
+    display: block;
+    border: none !important;
+    padding: 0 !important;
+}
+.summernote {
+    height: 100%;
+    background: #ecebda;
+    position: relative;
+    padding: 18px;
+}

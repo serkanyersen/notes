@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no" media="(device-height: 568px)"/>
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <title>Notes</title>
+
+    <link rel="stylesheet" type="text/css" href="components/bootstrap/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="components/codemirror/lib/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="components/codemirror/theme/solarized.css">
+
+    <!-- <link rel="stylesheet" type="text/css" href="//rawgit.com/HackerWins/summernote/master/dist/summernote.css"> -->
+
+    <link rel="stylesheet" type="text/css" href="core/styles.css">
+</head>
+<body>
+    <table class="table table-bordered" width="100%" height="100%">
+        <tr>
+            <td colspan="2" height="10" valign="middle" style="line-height:0">
+                <h3 style="margin:0">
+                    <span id="expand">
+                        <i class="glyphicon glyphicon-expand"></i>
+                    </span>
+                    Notes
+                    <span class="pull-right logged-out">
+                        <a class="login" href="#">Login</a>
+                    </span>
+                    <span class="pull-right logged-in" style="display:none">
+                        <span class="username">user</span> |
+                        <a class="logout" href="#">Logout</a>
+                    </span>
+                </h3>
+            </td>
+        </tr>
+        <tr>
+            <td width="180px" id="side-bar">
+                <button class="btn btn-block add-new">Add new Note</button>
+                <hr>
+                <input type="search" class="form-control" placeholder="Search Notes" id="search">
+                <hr>
+                <div class="list-group" id="note-list">
+                </div>
+            </td>
+            <td class="editor-container">
+                <div class="summernote">
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <script type="text/template" id="list-item">
+        <% _(notes).each(function(note){ %>
+            <a href="#<%=note.url%>" class="list-group-item notes <% if(window.location.hash==='#'+note.url){ print('active'); }%>">
+                <%=note.title%>
+                <span class="remove-note" data-id="<%=note.url%>">
+                    <i class="glyphicon glyphicon-remove-circle"></i>
+                </span>
+            </a>
+        <% }); %>
+    </script>
+
+    <script type="text/javascript" src="components/jquery/dist/jquery.min.js"></script>
+    <script type="text/javascript" src="components/underscore/underscore.js"></script>
+    <script type="text/javascript" src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+
+    <script type="text/javascript" src="//cdn.firebase.com/js/client/1.0.17/firebase.js"></script>
+    <script type="text/javascript" src="//cdn.firebase.com/js/simple-login/1.6.1/firebase-simple-login.js"></script>
+
+
+    <!-- <script type="text/javascript" src="//rawgit.com/HackerWins/summernote/master/dist/summernote.min.js"></script> -->
+
+    <script type="text/javascript" src="components/codemirror/lib/codemirror.js"></script>
+    <script type="text/javascript" src="components/codemirror/keymap/sublime.js"></script>
+    <script type="text/javascript" src="components/codemirror/mode/markdown/markdown.js"></script>
+
+
+    <script type="text/javascript" src="core/core.js"></script>
+    <script type="text/javascript" src="core/view.js"></script>
+
+    <script type="text/javascript">
+        $(function () {
+            window.core = new NotesCore();
+            new NotesVew(core);
+        });
+    </script>
+</body>
+</html>
