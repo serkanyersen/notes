@@ -36,13 +36,13 @@
             </td>
         </tr>
         <tr>
-            <td width="180px" id="side-bar">
+            <td width="280px" id="side-bar">
                 <button class="btn btn-block add-new">New Note</button>
                 <hr>
                 <input type="search" class="form-control" placeholder="Search Notes" id="search">
                 <hr>
-                <div class="list-group" id="note-list">
-                </div>
+                <div class="list-group" id="search-list" style="display: none"></div>
+                <div class="list-group" id="note-list"></div>
                 <button class="btn btn-block toggle-trash">
                     <i class="glyphicon glyphicon-trash"></i>
                     <span class="trash-text">Open Trash</span>
@@ -55,6 +55,21 @@
             </td>
         </tr>
     </table>
+
+    <script type="text/template" id="search-item">
+        <% if (notes.length === 0) { %>
+            No Results
+        <% } else { %>
+            <% _(notes).each(function(note){ %>
+                <a href="#<%=note.url%>" class="list-group-item notes <% if(window.location.hash==='#'+note.url){ print('active'); }%>">
+                    <%=note.title%>
+                    <span class="trash-note" title="Move to trash" data-id="<%=note.url%>">
+                        <i class="glyphicon glyphicon-remove-circle"></i>
+                    </span>
+                </a>
+            <% }); %>
+        <% } %>
+    </script>
 
     <script type="text/template" id="list-item">
         <% if (notes.length === 0) { %>
@@ -94,7 +109,7 @@
     <script type="text/javascript" src="components/bootstrap/dist/js/bootstrap.min.js"></script>
 
     <script type="text/javascript" src="components/mousetrap/mousetrap.min.js"></script>
-
+    <script type="text/javascript" src="components/lunr.js/lunr.min.js"></script>
     <script type="text/javascript" src="//cdn.firebase.com/js/client/1.0.17/firebase.js"></script>
     <script type="text/javascript" src="//cdn.firebase.com/js/simple-login/1.6.1/firebase-simple-login.js"></script>
 

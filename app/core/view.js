@@ -100,6 +100,7 @@ var NotesVew = (function(win, undef) {
             if (self.codemirror) {
                 if(self.codemirror.getValue() !== note.body){
                     self.codemirror.setValue(note.body.replace(/<br\>/gim, '\n'));
+                    self.codemirror.clearHistory();
                 }
             } else {
                 if(self.summernote.code() !== note.body){
@@ -130,6 +131,20 @@ var NotesVew = (function(win, undef) {
             }
             self.core.getNotes();
         });
+
+        $('#search').on('keyup', _.debounce(function(e) {
+            var keyword = $(this).val().trim();
+            if (keyword) {
+                var html = _($('#search-item').html()).template({
+                    'notes': self.core.search(keyword)
+                });
+                $('#search-list').html(html).show();
+                $('#note-list').hide();
+            } else {
+                $('#search-list').html('').hide();
+                $('#note-list').show();
+            }
+        }, 100));
 
         Mousetrap.bind(['meta+s', 'ctrl+s', 'command+s'], function(e) {
             return false;

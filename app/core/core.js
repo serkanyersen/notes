@@ -10,7 +10,44 @@ var NotesCore = (function(win, undef) {
                 // load all the notes
                 self.getNotes();
             });
+
+            this.idx = lunr(function () {
+              this.ref('id');
+
+              this.field('title', { boost: 10 });
+              this.field('body');
+            });
         };
+
+    Core.prototype.addSearchIndex = function(snapshot) {
+        var note = snapshot.val();
+        this.idx.add({
+            id: snapshot.name(),
+            title: note.title,
+            body: note.body
+        });
+    };
+
+    Core.prototype.updateSearchIndex = function(snapshot) {
+        var note = snapshot.val();
+        this.idx.update({
+            id: snapshot.name(),
+            title: note.title,
+            body: note.body
+        });
+    };
+
+    Core.prototype.removeSearchIndex = function(snapshot) {
+        this.idx.remove(snapshot.name());
+    };
+
+    Core.prototype.search = function(keyword) {
+        var self = this;
+        var result = this.idx.search(keyword);
+        return _(result).chain().sortBy(function(r) { return r.score; }).map(function(r) {
+            return _(self.notes).where({ url: self.user.username + "/" + r.ref })[0];
+        }).value();
+    };
 
     Core.prototype.getPath = function(snapshot) {
         return this.user.username + '/' + snapshot.name();
@@ -54,6 +91,7 @@ var NotesCore = (function(win, undef) {
             note.url = self.getPath(snapshot);
             note.snapshot = snapshot;
             self.notes.push(note);
+            self.addSearchIndex(snapshot);
             $(self).trigger("note:added");
         });
         notesRef.off("child_changed");
@@ -65,6 +103,7 @@ var NotesCore = (function(win, undef) {
                 });
             savedNote.body = note.body;
             savedNote.title = note.title;
+            self.updateSearchIndex(snapshot);
             $(self).trigger("note:changed");
         });
         notesRef.off("child_removed");
@@ -72,6 +111,7 @@ var NotesCore = (function(win, undef) {
             self.notes = _(self.notes).reject(function (note) {
                 return note.url === self.getPath(snapshot);
             });
+            self.removeSearchIndex(snapshot);
             $(self).trigger("note:removed");
         });
     };
