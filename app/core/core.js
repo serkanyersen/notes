@@ -132,7 +132,7 @@ var NotesCore = (function(win, undef) {
 
     Core.prototype.updateNote = function(id, text) {
         var noteRef = new Firebase(firebase + "notes/" + id),
-
+            note = _(self.core.notes).where({url: id})[0],
             plainText = text.replace(/<div/gim, '\n<div')
                             .replace(/<br/gim, '\n<br')
                             .replace(/(<([^>]+)>)/gim, '')
@@ -146,11 +146,13 @@ var NotesCore = (function(win, undef) {
             title = untitledName;
         }
 
-        noteRef.update({
-            time_updated: +(new Date()),
-            title: title || untitledName,
-            body: text || untitledBody
-        });
+        if (note.title !== title || note.body !== text) {
+            noteRef.update({
+                time_updated: +(new Date()),
+                title: title || untitledName,
+                body: text || untitledBody
+            });
+        }
     };
 
     return Core;

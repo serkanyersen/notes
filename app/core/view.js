@@ -86,7 +86,11 @@ var NotesVew = (function(win, undef) {
             $('#side-bar, #expand').hide();
         }).on('note:added note:changed note:removed', function (data) {
             var html = _($(self.template).html()).template({
-                'notes': self.core.notes
+                'notes': _(self.core.notes).chain().sortBy(function(n){
+                            return n.time_updated;
+                        }).reverse().where({
+                            deleted: self.template === self.trashTemplate
+                        }).value()
             });
             $('#note-list').html(html);
             $('.trash-count').html(_(self.core.notes).where({ deleted: true }).length);
@@ -189,6 +193,7 @@ var NotesVew = (function(win, undef) {
         if (self.codemirror) {
             self.codemirror.on('change', _.debounce(function(contents){
                 self.core.updateNote(self.getPage(), self.codemirror.getValue());
+                self.core.getNotes();
             }, 1000));
 
             self.codemirror.setSize('auto', '100%');
