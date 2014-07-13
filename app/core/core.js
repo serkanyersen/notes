@@ -12,6 +12,10 @@ var NotesCore = (function(win, undef) {
             });
         };
 
+    Core.prototype.getPath = function(snapshot) {
+        return this.user.username + '/' + snapshot.name();
+    };
+
     Core.prototype.authenticate = function(callback) {
         var self = this,
             noteRef = new Firebase(firebase);
@@ -35,7 +39,7 @@ var NotesCore = (function(win, undef) {
     Core.prototype.getNotes = function() {
         this.notes = [];
         var self = this,
-            notesRef = new Firebase(firebase + "notes");
+            notesRef = new Firebase(firebase + self.user.username);
 
         notesRef.off("value");
         notesRef.on("value", function(snapshot) {
@@ -47,7 +51,7 @@ var NotesCore = (function(win, undef) {
         notesRef.off("child_added");
         notesRef.on("child_added", function (snapshot) {
             var note = snapshot.val();
-            note.url = snapshot.name();
+            note.url = self.getPath(snapshot);
             note.snapshot = snapshot;
             self.notes.push(note);
             $(self).trigger("note:added");
@@ -55,7 +59,7 @@ var NotesCore = (function(win, undef) {
         notesRef.off("child_changed");
         notesRef.on("child_changed", function (snapshot) {
             var note = snapshot.val(),
-                url = snapshot.name(),
+                url = self.getPath(snapshot),
                 savedNote = _(self.notes).findWhere({
                     url: url
                 });
@@ -66,7 +70,7 @@ var NotesCore = (function(win, undef) {
         notesRef.off("child_removed");
         notesRef.on("child_removed", function (snapshot) {
             self.notes = _(self.notes).reject(function (note) {
-                return note.url === snapshot.name();
+                return note.url === self.getPath(snapshot);
             });
             $(self).trigger("note:removed");
         });
@@ -74,7 +78,7 @@ var NotesCore = (function(win, undef) {
 
     Core.prototype.getNote = function(id) {
         var self = this,
-            noteRef = new Firebase(firebase + 'notes/' + id);
+            noteRef = new Firebase(firebase + id);
 
         noteRef.off("value");
         noteRef.on("value", function (snapshot) {
@@ -88,12 +92,12 @@ var NotesCore = (function(win, undef) {
         var self = this,
             newNoteRef,
             notesRef,
-            existingNew = _(self.notes).find(function(n){
+            existingNew = _(self.notes).chain().where({ deleted: false }).find(function(n){
                 return n.title === untitledName;
-            });
+            }).value();
 
         if(existingNew === undefined) {
-            notesRef = new Firebase(firebase + "notes");
+            notesRef = new Firebase(firebase + self.user.username);
             newNoteRef = notesRef.push({
                 userid: this.user.uid,
                 time_created: +(new Date()),
@@ -109,7 +113,7 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.trashNote = function(id) {
-        var noteRef = new Firebase(firebase + "notes/" + id);
+        var noteRef = new Firebase(firebase + id);
         noteRef.update({
             deleted: true
         });
@@ -117,7 +121,7 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.untrashNote = function(id) {
-        var noteRef = new Firebase(firebase + "notes/" + id);
+        var noteRef = new Firebase(firebase + id);
         noteRef.update({
             deleted: false
         });
@@ -125,13 +129,13 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.deleteNote = function(id) {
-        var noteRef = new Firebase(firebase + "notes/" + id);
+        var noteRef = new Firebase(firebase + id);
         noteRef.remove();
         $(this).trigger('note:deleted', [id]);
     };
 
     Core.prototype.updateNote = function(id, text) {
-        var noteRef = new Firebase(firebase + "notes/" + id),
+        var noteRef = new Firebase(firebase + id),
             note = _(self.core.notes).where({url: id})[0],
             plainText = text.replace(/<div/gim, '\n<div')
                             .replace(/<br/gim, '\n<br')

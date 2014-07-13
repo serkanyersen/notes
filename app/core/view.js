@@ -113,7 +113,7 @@ var NotesVew = (function(win, undef) {
             }
 
         }).on('note:created', function(e, newNoteRef){
-            self.setPage(newNoteRef.name());
+            self.setPage(self.core.getPath(newNoteRef));
         }).on('note:deleted', function(e, id) {
             if (id === self.getPage() || $('.notes').length === 0) {
                 self.openFirstNote();
