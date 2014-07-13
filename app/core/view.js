@@ -3,11 +3,18 @@ var NotesVew = (function(win, undef) {
     var View = function(core) {
         var self = this;
         self.summernote = $('.summernote');
+        self.listTemplate = '#list-item';
+        self.trashTemplate = '#trash-list-item';
+        self.template = self.listTemplate;
         if (win.CodeMirror) {
             self.codemirror = CodeMirror($('.editor-container')[0], {
               mode:  'markdown',
               keyMap: 'sublime',
               lineNumbers: true,
+              extraKeys: {
+                "Ctrl-S": function(instance) { },
+                "Cmd-S": function(instance) { }
+              },
               theme: 'solarized light'
             });
         }
@@ -26,10 +33,29 @@ var NotesVew = (function(win, undef) {
         });
 
         // because links are created after screen is initialized
-        $('.list-group').on('click', '.remove-note', function(e){
+        $('.list-group').on('click', '.trash-note', function(e){
             e.preventDefault();
             e.stopPropagation();
-            self.core.deleteNote($(this).data('id'));
+            self.core.trashNote($(this).data('id'));
+            self.core.getNotes();
+        });
+
+        // because links are created after screen is initialized
+        $('.list-group').on('click', '.untrash-note', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            self.core.untrashNote($(this).data('id'));
+            self.core.getNotes();
+        });
+
+        // because links are created after screen is initialized
+        $('.list-group').on('click', '.remove-note', function(e){
+            if(confirm('are you sure')){
+                e.preventDefault();
+                e.stopPropagation();
+                self.core.removeNote($(this).data('id'));
+                self.core.getNotes();
+            }
         });
 
         $('.login').on('click', function() {
@@ -59,10 +85,11 @@ var NotesVew = (function(win, undef) {
         }).on('notes:notread', function() {
             $('#side-bar, #expand').hide();
         }).on('note:added note:changed note:removed', function (data) {
-            var html = _($('#list-item').html()).template({
+            var html = _($(self.template).html()).template({
                 'notes': self.core.notes
             });
             $('#note-list').html(html);
+            $('.trash-count').html(_(self.core.notes).where({ deleted: true }).length);
         }).on('note:read', function(e, snapshot) {
             var note = snapshot.val();
 
@@ -87,6 +114,32 @@ var NotesVew = (function(win, undef) {
             if (id === self.getPage() || $('.notes').length === 0) {
                 self.openFirstNote();
             }
+        });
+
+        $('.toggle-trash').on('click', function() {
+            if (self.template === self.listTemplate) {
+                self.template = self.trashTemplate;
+                $('.trash-text').html('Close trash');
+            } else {
+                self.template = self.listTemplate;
+                $('.trash-text').html('Open trash');
+            }
+            self.core.getNotes();
+        });
+
+        Mousetrap.bind(['meta+s', 'ctrl+s', 'command+s'], function(e) {
+            return false;
+        });
+
+        Mousetrap.bind(['meta+n', 'ctrl+n', 'command+n'], function(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            } else {
+                // internet explorer
+                e.returnValue = false;
+            }
+            self.core.addNewNote();
+            return false;
         });
     };
 

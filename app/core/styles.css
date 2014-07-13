@@ -18,16 +18,25 @@ body {
     position: relative;
 }
 
-.notes:hover > .remove-note{
+.notes:hover > .remove-note,
+.notes:hover > .trash-note,
+.notes:hover > .untrash-note{
     display: block;
 }
 
-.remove-note {
+.remove-note,
+.trash-note,
+.untrash-note {
     position: absolute;
     right: 5px;
     top: 11px;
     display: none;
 }
+
+.untrash-note {
+    right: 25px;
+}
+
 .editor-container {
     position: relative;
     height: 100%;

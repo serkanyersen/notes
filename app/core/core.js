@@ -33,6 +33,7 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.getNotes = function() {
+        this.notes = [];
         var self = this,
             notesRef = new Firebase(firebase + "notes");
 
@@ -98,7 +99,8 @@ var NotesCore = (function(win, undef) {
                 time_created: +(new Date()),
                 time_updated: +(new Date()),
                 title: untitledName,
-                body: untitledBody
+                body: untitledBody,
+                deleted: false
             });
         } else {
             newNoteRef = existingNew.snapshot;
@@ -106,12 +108,26 @@ var NotesCore = (function(win, undef) {
         $(this).trigger('note:created', [newNoteRef]);
     };
 
+    Core.prototype.trashNote = function(id) {
+        var noteRef = new Firebase(firebase + "notes/" + id);
+        noteRef.update({
+            deleted: true
+        });
+        $(this).trigger('note:trashed', [id]);
+    };
+
+    Core.prototype.untrashNote = function(id) {
+        var noteRef = new Firebase(firebase + "notes/" + id);
+        noteRef.update({
+            deleted: false
+        });
+        $(this).trigger('note:trashed', [id]);
+    };
+
     Core.prototype.deleteNote = function(id) {
-        if(confirm('Are you sure?')) {
-            var noteRef = new Firebase(firebase + "notes/" + id);
-            noteRef.remove();
-            $(this).trigger('note:deleted', [id]);
-        }
+        var noteRef = new Firebase(firebase + "notes/" + id);
+        noteRef.remove();
+        $(this).trigger('note:deleted', [id]);
     };
 
     Core.prototype.updateNote = function(id, text) {

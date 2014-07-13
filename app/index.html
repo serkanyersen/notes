@@ -37,12 +37,16 @@
         </tr>
         <tr>
             <td width="180px" id="side-bar">
-                <button class="btn btn-block add-new">Add new Note</button>
+                <button class="btn btn-block add-new">New Note</button>
                 <hr>
                 <input type="search" class="form-control" placeholder="Search Notes" id="search">
                 <hr>
                 <div class="list-group" id="note-list">
                 </div>
+                <button class="btn btn-block toggle-trash">
+                    <i class="glyphicon glyphicon-trash"></i>
+                    <span class="trash-text">Open Trash [<span class="trash-count">0</span>]</span>
+                </button>
             </td>
             <td class="editor-container">
                 <div class="summernote">
@@ -52,19 +56,43 @@
     </table>
 
     <script type="text/template" id="list-item">
-        <% _(notes).each(function(note){ %>
-            <a href="#<%=note.url%>" class="list-group-item notes <% if(window.location.hash==='#'+note.url){ print('active'); }%>">
-                <%=note.title%>
-                <span class="remove-note" data-id="<%=note.url%>">
-                    <i class="glyphicon glyphicon-remove-circle"></i>
-                </span>
-            </a>
-        <% }); %>
+        <% if (_(notes).where({ deleted: false }).length === 0) { %>
+            No Notes
+        <% } else { %>
+            <% _(notes).chain().where({ deleted: false }).each(function(note){ %>
+                <a href="#<%=note.url%>" class="list-group-item notes <% if(window.location.hash==='#'+note.url){ print('active'); }%>">
+                    <%=note.title%>
+                    <span class="trash-note" title="Move to trash" data-id="<%=note.url%>">
+                        <i class="glyphicon glyphicon-remove-circle"></i>
+                    </span>
+                </a>
+            <% }); %>
+        <% } %>
+    </script>
+
+    <script type="text/template" id="trash-list-item">
+        <% if (_(notes).where({ deleted: true }).length === 0) { %>
+            Trash is empty
+        <% } else { %>
+            <% _(notes).chain().where({ deleted: true }).each(function(note){ %>
+                <a href="#<%=note.url%>" class="list-group-item notes <% if(window.location.hash==='#'+note.url){ print('active'); }%>">
+                    <%=note.title%>
+                    <span class="untrash-note" title="Remove from trash" data-id="<%=note.url%>">
+                        <i class="glyphicon glyphicon-share-alt"></i>
+                    </span>
+                    <span class="remove-note" title="Delete Note" data-id="<%=note.url%>">
+                        <i class="glyphicon glyphicon-remove-circle"></i>
+                    </span>
+                </a>
+            <% }); %>
+        <% } %>
     </script>
 
     <script type="text/javascript" src="components/jquery/dist/jquery.min.js"></script>
     <script type="text/javascript" src="components/underscore/underscore.js"></script>
     <script type="text/javascript" src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+
+    <script type="text/javascript" src="components/mousetrap/mousetrap.min.js"></script>
 
     <script type="text/javascript" src="//cdn.firebase.com/js/client/1.0.17/firebase.js"></script>
     <script type="text/javascript" src="//cdn.firebase.com/js/simple-login/1.6.1/firebase-simple-login.js"></script>
