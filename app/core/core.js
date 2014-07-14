@@ -6,6 +6,7 @@ var NotesCore = (function(win, undef) {
         Core = function() {
             var self = this;
             self.notes = [];
+            self.user = {};
             this.authenticate(function() {
                 // load all the notes
                 self.getNotes();
@@ -75,6 +76,7 @@ var NotesCore = (function(win, undef) {
 
     Core.prototype.getNotes = function() {
         this.notes = [];
+        if(!this.user){ return; }
         var self = this,
             notesRef = new Firebase(firebase + self.user.username);
 
@@ -190,7 +192,7 @@ var NotesCore = (function(win, undef) {
             title = untitledName;
         }
 
-        if (note.title !== title || note.body !== text) {
+        if (note && (note.title !== title || note.body !== text)) {
             noteRef.update({
                 time_updated: +(new Date()),
                 title: title || untitledName,

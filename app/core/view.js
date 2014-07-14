@@ -7,9 +7,13 @@ var NotesVew = (function(win, undef) {
         self.trashTemplate = '#trash-list-item';
         self.template = self.listTemplate;
         if (win.CodeMirror) {
-            self.codemirror = CodeMirror($('.editor-container')[0], {
+            self.codemirror = CodeMirror($('.editor')[0], {
               mode:  'markdown',
               keyMap: 'sublime',
+              indentUnit: 2,
+              textWrapping: true,
+              tabSize: 4,
+              tabMode: 'shift',
               lineNumbers: true,
               extraKeys: {
                 "Ctrl-S": function(instance) { },
@@ -77,13 +81,17 @@ var NotesVew = (function(win, undef) {
         }).on('user:loggedout', function(){
             $('.logged-in').hide();
             $('.logged-out').show();
+            $('#side-bar, #expand, .preview-btn, #search').hide();
+            $('.preview').show();
         }).on('notes:read', function(e, spanshot) {
             if(self.getPage() === ''){
                 self.openFirstNote();
             }
-            $('#side-bar, #expand').show();
+            $('#side-bar, #expand, .preview-btn, #search').show();
+            $('.preview').hide();
         }).on('notes:notread', function() {
-            $('#side-bar, #expand').hide();
+            $('#side-bar, #expand, .preview-btn, #search').hide();
+            $('.preview').show();
         }).on('note:added note:changed note:removed', function (data) {
             var html = _($(self.template).html()).template({
                 'notes': _(self.core.notes).chain().sortBy(function(n){
@@ -101,6 +109,8 @@ var NotesVew = (function(win, undef) {
                 if(self.codemirror.getValue() !== note.body){
                     self.codemirror.setValue(note.body.replace(/<br\>/gim, '\n'));
                     self.codemirror.clearHistory();
+                    $('.note-date').html(moment(note.time_created).fromNow());
+                    $('.preview').html(markdown.toHTML(note.body));
                 }
             } else {
                 if(self.summernote.code() !== note.body){
@@ -145,6 +155,17 @@ var NotesVew = (function(win, undef) {
                 $('#note-list').show();
             }
         }, 100));
+
+        $('.preview-btn').on('click', function(){
+            if($('.preview').is(':visible')) {
+                $(this).html('Preview');
+                $('.preview').hide();
+            } else {
+                $(this).html('Edit');
+                $('.preview').show();
+            }
+
+        });
 
         Mousetrap.bind(['meta+s', 'ctrl+s', 'command+s'], function(e) {
             return false;
