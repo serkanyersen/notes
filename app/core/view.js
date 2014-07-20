@@ -27,13 +27,13 @@ var NotesVew = (function(win, undef) {
         self.initEditor();
 
         // Check for page changes
-        $(self.core).on('auth:done', function(e, user, error){
+        self.core.events.on('auth:done', function(e, user, error){
             self.getPageChange();
         });
 
         // Add new button is always there
         $('.add-new').on('click', function() {
-            self.core.addNewNote();
+            self.core.addNote();
         });
 
         // because links are created after screen is initialized
@@ -41,7 +41,7 @@ var NotesVew = (function(win, undef) {
             e.preventDefault();
             e.stopPropagation();
             self.core.trashNote($(this).data('id'));
-            self.core.getNotes();
+            self.core.readNotes();
         });
 
         // because links are created after screen is initialized
@@ -49,7 +49,7 @@ var NotesVew = (function(win, undef) {
             e.preventDefault();
             e.stopPropagation();
             self.core.untrashNote($(this).data('id'));
-            self.core.getNotes();
+            self.core.readNotes();
         });
 
         // because links are created after screen is initialized
@@ -58,7 +58,7 @@ var NotesVew = (function(win, undef) {
                 e.preventDefault();
                 e.stopPropagation();
                 self.core.removeNote($(this).data('id'));
-                self.core.getNotes();
+                self.core.readNotes();
             }
         });
 
@@ -74,35 +74,37 @@ var NotesVew = (function(win, undef) {
             self.toggleSideBar();
         });
 
-        $(core).on('user:loggedin', function(e, user){
+        core.events.on('user:loggedin', function(user){
             $('.logged-in').show();
             $('.logged-out').hide();
             $('.username').html(user.displayName);
-        }).on('user:loggedout', function(){
+        });
+        core.events.on('user:loggedout', function(){
             $('.logged-in').hide();
             $('.logged-out').show();
             $('#side-bar, #expand, .preview-btn, #search').hide();
             $('.preview').show();
-        }).on('notes:read', function(e, spanshot) {
+        });
+        core.events.on('notes:read', function(spanshot) {
             if(self.getPage() === ''){
                 self.openFirstNote();
             }
             $('#side-bar, #expand, .preview-btn, #search').show();
             $('.preview').hide();
-        }).on('notes:notread', function() {
+        });
+        core.events.on('notes:notread', function() {
             $('#side-bar, #expand, .preview-btn, #search').hide();
             $('.preview').show();
-        }).on('note:added note:changed note:removed', function (data) {
+        });
+        core.events.on('note:added note:changed note:removed', function (data) {
+            var isTrash = self.template === self.trashTemplate;
             var html = _($(self.template).html()).template({
-                'notes': _(self.core.notes).chain().sortBy(function(n){
-                            return n.time_updated;
-                        }).reverse().where({
-                            deleted: self.template === self.trashTemplate
-                        }).value()
+                'notes': self.core.getNoteList(isTrash)
             });
             $('#note-list').html(html);
-            $('.trash-count').html(_(self.core.notes).where({ deleted: true }).length);
-        }).on('note:read', function(e, snapshot) {
+            $('.trash-count').html(self.core.getNoteListCount(true));
+        });
+        core.events.on('note:read', function(snapshot) {
             var note = snapshot.val();
 
             if (self.codemirror) {
@@ -123,9 +125,11 @@ var NotesVew = (function(win, undef) {
                 }
             }
 
-        }).on('note:created', function(e, newNoteRef){
+        });
+        core.events.on('note:created', function(newNoteRef){
             self.setPage(self.core.getPath(newNoteRef));
-        }).on('note:deleted', function(e, id) {
+        });
+        core.events.on('note:deleted', function(e, id) {
             if (id === self.getPage() || $('.notes').length === 0) {
                 self.openFirstNote();
             }
@@ -139,7 +143,7 @@ var NotesVew = (function(win, undef) {
                 self.template = self.listTemplate;
                 $('.trash-text').html('Open trash');
             }
-            self.core.getNotes();
+            self.core.readNotes();
         });
 
         $('#search').on('keyup', _.debounce(function(e) {
@@ -178,7 +182,7 @@ var NotesVew = (function(win, undef) {
                 // internet explorer
                 e.returnValue = false;
             }
-            self.core.addNewNote();
+            self.core.addNote();
             return false;
         });
     };
@@ -187,7 +191,7 @@ var NotesVew = (function(win, undef) {
         var self = this;
         var change = function () {
             var page = self.getPage();
-            self.core.getNote(page);
+            self.core.readNote(page);
             $('.active').removeClass('active');
             $('[href="' + win.location.hash + '"]').addClass('active');
         };
@@ -211,7 +215,7 @@ var NotesVew = (function(win, undef) {
         if( $('.notes').length > 0 ) {
             $('.notes')[0].click();
         } else {
-            this.core.addNewNote();
+            this.core.addNote();
         }
     };
 
@@ -229,7 +233,7 @@ var NotesVew = (function(win, undef) {
         if (self.codemirror) {
             self.codemirror.on('change', _.debounce(function(contents){
                 self.core.updateNote(self.getPage(), self.codemirror.getValue());
-                self.core.getNotes();
+                self.core.readNotes();
             }, 1000));
 
             self.codemirror.setSize('auto', '100%');

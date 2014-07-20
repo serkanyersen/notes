@@ -1,24 +1,65 @@
 var NotesCore = (function(win, undef) {
 
-    var firebase = "https://intense-fire-5583.firebaseio.com/";
+    var Core,
+        firebase = "https://intense-fire-5583.firebaseio.com/",
         untitledName = "Untitled",
-        untitledBody = "New Note",
-        Core = function() {
-            var self = this;
-            self.notes = [];
-            self.user = {};
-            this.authenticate(function() {
-                // load all the notes
-                self.getNotes();
-            });
+        untitledBody = "New Note";
 
-            this.idx = lunr(function () {
-              this.ref('id');
+    /**
+     * Core class constructor
+     * it authenticates the user and
+     * initializes the search index
+     */
+    Core = function() {
+        // Empty list of notes
+        this.notes = [];
+        this.user = {};
 
-              this.field('title', { boost: 10 });
-              this.field('body');
-            });
+        this.authenticate(function() {
+            // load all the notes
+            this.readNotes();
+        }.bind(this));
+
+        this.idx = lunr(function () {
+          this.ref('id');
+
+          this.field('title', { boost: 10 });
+          this.field('body');
+        });
+    };
+
+    Core.prototype.events = (function() {
+        var listeners = {};
+        return {
+            on: function(name, callback, context) {
+                var names = name.split(/\s+/);
+                names.forEach(function(name) {
+                    if (!listeners[name]) {
+                        listeners[name] = [];
+                    }
+                    listeners[name].push(callback.bind(context || this));
+                });
+                return this;
+            },
+            fire: function(name) {
+                var names = name.split(/\s+/),
+                    memo = Array.prototype.slice.call(arguments);
+                memo.shift();
+                names.forEach(function(name) {
+                    if (listeners[name]) {
+                        listeners[name].forEach(function(callback) {
+                            if (memo) {
+                                callback.apply(this, memo);
+                            } else {
+                                callback.call(this);
+                            }
+                        });
+                    }
+                });
+                return this;
+            }
         };
+    })();
 
     Core.prototype.addSearchIndex = function(snapshot) {
         var note = snapshot.val();
@@ -43,11 +84,10 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.search = function(keyword) {
-        var self = this;
         var result = this.idx.search(keyword);
         return _(result).chain().sortBy(function(r) { return r.score; }).map(function(r) {
-            return _(self.notes).where({ url: self.user.username + "/" + r.ref })[0];
-        }).value();
+            return _(this.notes).where({ url: this.user.username + "/" + r.ref })[0];
+        }.bind(this)).value();
     };
 
     Core.prototype.getPath = function(snapshot) {
@@ -55,91 +95,106 @@ var NotesCore = (function(win, undef) {
     };
 
     Core.prototype.authenticate = function(callback) {
-        var self = this,
-            noteRef = new Firebase(firebase);
+        var noteRef = new Firebase(firebase);
 
         this.auth = new FirebaseSimpleLogin(noteRef, function(error, user) {
           if (error) {
             // an error occurred while attempting login
           } else if (user) {
-            self.user = user;
-            self.notes = [];
-            $(self).trigger('user:loggedin', [user]);
+            this.user = user;
+            this.notes = [];
+            this.events.fire('user:loggedin', user);
           } else {
-            $(self).trigger('user:loggedout');
-            self.notes = [];
+            this.events.fire('user:loggedout');
+            this.notes = [];
           }
-          $(self).trigger('auth:done', [user, error]);
+          this.events.fire('auth:done', user, error);
           callback();
-        });
+        }.bind(this));
     };
 
-    Core.prototype.getNotes = function() {
+    Core.prototype.getNoteList = function(trash) {
+        return _(this.notes).chain().sortBy(function(n){
+                    return n.time_updated;
+                }).reverse().where({
+                    deleted: !!trash
+                }).value();
+    };
+
+    Core.prototype.getNoteListCount = function(trash) {
+        return this.getNoteList(trash).length;
+    };
+
+    Core.prototype.readNotes = function() {
+        var notesRef = new Firebase(firebase + this.user.username);
+        if(!this.user){
+            return;
+        }
         this.notes = [];
-        if(!this.user){ return; }
-        var self = this,
-            notesRef = new Firebase(firebase + self.user.username);
 
         notesRef.off("value");
-        notesRef.on("value", function(snapshot) {
-            $(self).trigger('notes:read', [snapshot]);
-        }, function() {
-            $(self).trigger('notes:notread');
-        });
+        notesRef.on("value", this.notesChildReadSuccess.bind(this),
+                             this.notesChildReadSuccess.bind(this));
 
         notesRef.off("child_added");
-        notesRef.on("child_added", function (snapshot) {
-            var note = snapshot.val();
-            note.url = self.getPath(snapshot);
-            note.snapshot = snapshot;
-            self.notes.push(note);
-            self.addSearchIndex(snapshot);
-            $(self).trigger("note:added");
-        });
+        notesRef.on("child_added", this.notesChildAdded.bind(this));
+
         notesRef.off("child_changed");
-        notesRef.on("child_changed", function (snapshot) {
-            var note = snapshot.val(),
-                url = self.getPath(snapshot),
-                savedNote = _(self.notes).findWhere({
-                    url: url
-                });
-            savedNote.body = note.body;
-            savedNote.title = note.title;
-            self.updateSearchIndex(snapshot);
-            $(self).trigger("note:changed");
-        });
+        notesRef.on("child_changed", this.notesChildChanged.bind(this));
+
         notesRef.off("child_removed");
-        notesRef.on("child_removed", function (snapshot) {
-            self.notes = _(self.notes).reject(function (note) {
-                return note.url === self.getPath(snapshot);
+        notesRef.on("child_removed", this.notesChildRemoved.bind(this));
+    };
+
+    Core.prototype.notesChildReadSuccess = function(snapshot) {
+        this.events.fire('notes:read', snapshot);
+    };
+
+    Core.prototype.notesChildReadFail = function(snapshot) {
+        this.events.fire('notes:notread');
+    };
+
+    Core.prototype.notesChildAdded = function (snapshot) {
+        var note = snapshot.val();
+        note.url = this.getPath(snapshot);
+        note.snapshot = snapshot;
+        this.notes.push(note);
+        this.addSearchIndex(snapshot);
+        this.events.fire("note:added", snapshot);
+        this.events.fire("notes:changed", "added", snapshot);
+    };
+
+    Core.prototype.notesChildChanged = function (snapshot) {
+        var note = snapshot.val(),
+            url = this.getPath(snapshot),
+            savedNote = _(this.notes).findWhere({
+                url: url
             });
-            self.removeSearchIndex(snapshot);
-            $(self).trigger("note:removed");
-        });
+        savedNote.body = note.body;
+        savedNote.title = note.title;
+        this.updateSearchIndex(snapshot);
+        this.events.fire("note:changed");
+        this.events.fire("notes:changed", "changed", snapshot);
     };
 
-    Core.prototype.getNote = function(id) {
-        var self = this,
-            noteRef = new Firebase(firebase + id);
-
-        noteRef.off("value");
-        noteRef.on("value", function (snapshot) {
-            if(snapshot.val()) {
-                $(self).trigger('note:read', [snapshot]);
-            }
+    Core.prototype.notesChildRemoved = function (snapshot) {
+        this.notes = _(this.notes).reject(function (note) {
+            return note.url === this.getPath(snapshot);
         });
+        this.removeSearchIndex(snapshot);
+        this.events.fire("note:removed");
+        this.events.fire("notes:changed", "removed", snapshot);
     };
 
-    Core.prototype.addNewNote = function() {
-        var self = this,
-            newNoteRef,
+    Core.prototype.addNote = function() {
+        var newNoteRef,
             notesRef,
-            existingNew = _(self.notes).chain().where({ deleted: false }).find(function(n){
+            existingNew = _(this.notes).chain().where({ deleted: false }).find(function(n){
                 return n.title === untitledName;
             }).value();
 
         if(existingNew === undefined) {
-            notesRef = new Firebase(firebase + self.user.username);
+            notesRef = new Firebase(firebase + this.user.username);
             newNoteRef = notesRef.push({
                 userid: this.user.uid,
                 time_created: +(new Date()),
@@ -151,38 +206,27 @@ var NotesCore = (function(win, undef) {
         } else {
             newNoteRef = existingNew.snapshot;
         }
-        $(this).trigger('note:created', [newNoteRef]);
+        this.events.fire('note:created', newNoteRef);
     };
 
-    Core.prototype.trashNote = function(id) {
+    Core.prototype.readNote = function(id) {
         var noteRef = new Firebase(firebase + id);
-        noteRef.update({
-            deleted: true
-        });
-        $(this).trigger('note:trashed', [id]);
-    };
 
-    Core.prototype.untrashNote = function(id) {
-        var noteRef = new Firebase(firebase + id);
-        noteRef.update({
-            deleted: false
-        });
-        $(this).trigger('note:trashed', [id]);
-    };
-
-    Core.prototype.deleteNote = function(id) {
-        var noteRef = new Firebase(firebase + id);
-        noteRef.remove();
-        $(this).trigger('note:deleted', [id]);
+        noteRef.off("value");
+        noteRef.on("value", function (snapshot) {
+            if(snapshot.val()) {
+                this.events.fire('note:read', snapshot);
+            }
+        }.bind(this));
     };
 
     Core.prototype.updateNote = function(id, text) {
         var noteRef = new Firebase(firebase + id),
-            note = _(self.core.notes).where({url: id})[0],
+            note = _(this.notes).where({url: id})[0],
             plainText = text.replace(/<div/gim, '\n<div')
                             .replace(/<br/gim, '\n<br')
                             .replace(/(<([^>]+)>)/gim, '')
-                            .trim(),
+                            .trim();
 
             title = plainText.split(/\n/)[0];
             title = title.replace(/[\*\#]/gim, '');
@@ -199,6 +243,28 @@ var NotesCore = (function(win, undef) {
                 body: text || untitledBody
             });
         }
+    };
+
+    Core.prototype.deleteNote = function(id) {
+        var noteRef = new Firebase(firebase + id);
+        noteRef.remove();
+        this.events.fire('note:deleted', id);
+    };
+
+    Core.prototype.trashNote = function(id) {
+        var noteRef = new Firebase(firebase + id);
+        noteRef.update({
+            deleted: true
+        });
+        this.events.fire('note:trashed', id);
+    };
+
+    Core.prototype.untrashNote = function(id) {
+        var noteRef = new Firebase(firebase + id);
+        noteRef.update({
+            deleted: false
+        });
+        this.events.fire('note:trashed', id);
     };
 
     return Core;

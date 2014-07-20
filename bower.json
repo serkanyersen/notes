@@ -24,6 +24,15 @@
     "codemirror": "~4.3.0",
     "mousetrap": "~1.4.6",
     "moment": "~2.7.0",
-    "markdown": "~0.5.0"
+    "markdown": "~0.5.0",
+    "polymer": "~0.3.3",
+    "core-icons": "polymer/core-icons#~0.3.4",
+    "sampler-scaffold": "polymer/sampler-scaffold#~0.3.4",
+    "font-roboto": "polymer/font-roboto#~0.3.4",
+    "core-item": "polymer/core-item#~0.3.4",
+    "core-menu": "polymer/core-menu#~0.3.4",
+    "paper-icon-button": "polymer/paper-icon-button#~0.3.4",
+    "paper-fab": "polymer/paper-fab#~0.3.4",
+    "react": "~0.11.0"
   }
 }
