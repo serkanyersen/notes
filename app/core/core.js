@@ -1,3 +1,42 @@
+var ObjectEvents = (function(global, undef) {
+
+    var Events = function() {
+        this.listeners = {};
+    };
+
+    Events.prototype.on = function(name, callback, context) {
+        var names = name.split(/\s+/);
+        names.forEach(function(name) {
+            if (!this.listeners[name]) {
+                this.listeners[name] = [];
+            }
+            this.listeners[name].push(callback.bind(context || this));
+        }.bind(this));
+        return this;
+    };
+
+    Events.prototype.fire = function(name) {
+        var names = name.split(/\s+/),
+            memo = Array.prototype.slice.call(arguments);
+        memo.shift();
+        names.forEach(function(name) {
+            if (this.listeners[name]) {
+                this.listeners[name].forEach(function(callback) {
+                    if (memo) {
+                        callback.apply(this, memo);
+                    } else {
+                        callback.call(this);
+                    }
+                });
+            }
+        }.bind(this));
+        return this;
+    };
+
+    return Events;
+})(this);
+
+
 var NotesCore = (function(win, undef) {
 
     var Core,
@@ -28,38 +67,7 @@ var NotesCore = (function(win, undef) {
         });
     };
 
-    Core.prototype.events = (function() {
-        var listeners = {};
-        return {
-            on: function(name, callback, context) {
-                var names = name.split(/\s+/);
-                names.forEach(function(name) {
-                    if (!listeners[name]) {
-                        listeners[name] = [];
-                    }
-                    listeners[name].push(callback.bind(context || this));
-                });
-                return this;
-            },
-            fire: function(name) {
-                var names = name.split(/\s+/),
-                    memo = Array.prototype.slice.call(arguments);
-                memo.shift();
-                names.forEach(function(name) {
-                    if (listeners[name]) {
-                        listeners[name].forEach(function(callback) {
-                            if (memo) {
-                                callback.apply(this, memo);
-                            } else {
-                                callback.call(this);
-                            }
-                        });
-                    }
-                });
-                return this;
-            }
-        };
-    })();
+    Core.prototype.events = new ObjectEvents();
 
     Core.prototype.addSearchIndex = function(snapshot) {
         var note = snapshot.val();
@@ -212,7 +220,6 @@ var NotesCore = (function(win, undef) {
     Core.prototype.readNote = function(id) {
         var noteRef = new Firebase(firebase + id);
 
-        noteRef.off("value");
         noteRef.on("value", function (snapshot) {
             if(snapshot.val()) {
                 this.events.fire('note:read', snapshot);
