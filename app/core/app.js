@@ -65,12 +65,23 @@
 
 
 var FieldModel = Class.extend({
-  init: function(name, defaultValue) {
+  init: function(options) {
+    options = options || {};
+    this.defaultValue = options.empty;
+  },
+  setFieldName: function(name) {
     this.name = name;
-    this.defaultValue = defaultValue;
   },
   get: function() {
-    return this[this.name] || this.defaultValue;
+    var value;
+    if (this[this.name]) {
+      value = this[this.name];
+    } else if(typeof this.defaultValue === 'function') {
+      value = this.defaultValue();
+    } else {
+      value = this.defaultValue;
+    }
+    return value;
   },
   set: function(value) {
     this[this.name] = value;
@@ -89,9 +100,10 @@ var FieldModel = Class.extend({
 });
 
 var RelationField = FieldModel.extend({
-  init: function(name, relationObject) {
-    this.name = name;
-    this.relationObject = relationObject;
+  init: function(options) {
+    options = options || {};
+    this._super(options);
+    this.relationObject = options.relation;
   },
   get: function() {
     return new this.relationObject();
@@ -111,41 +123,36 @@ var DefaultField = FieldModel.extend({
 });
 
 var DocumentModel = Class.extend({
-  fields: {
-    time_created: new DefaultField('time_created'),
-    time_updated: new DefaultField('time_updated')
-  },
+  time_created: new DefaultField({ empty: function() { return +(new Date()); } }),
+  time_updated: new DefaultField({ empty: function() { return +(new Date()); } }),
+
   init: function() {
-    for (var key in this.fields) {
-      Object.defineProperty(this, key, this.fields[key].toCreateObject());
+    var field;
+    for (var key in this) {
+      field = this[key];
+      if ('toCreateObject' in field) {
+        field.setFieldName(key);
+        Object.defineProperty(this, key, field.toCreateObject());
+      }
     }
   },
+
   save: function() {},
   update: function() {},
   remove: function() {}
 });
 
 var User = DocumentModel.extend({
-  fields: {
-    username: new DefaultField('username'),
-    email: new DefaultField('email'),
-    name: new DefaultField('name')
-  },
-  init: function(){
-    this._super();
-  }
+  username : new DefaultField(),
+  email    : new DefaultField(),
+  name     : new DefaultField()
 });
 
 var Note = DocumentModel.extend({
-  fields: {
-    title: new DefaultField('title', 'Untitled'),
-    body: new DefaultField('body', 'New Note'),
-    deleted: new DefaultField('deleted', false),
-    user: new RelationField('user', User)
-  },
-  init: function(){
-    this._super();
-  }
+  title   : new DefaultField({ empty: 'Untitled' }),
+  body    : new DefaultField({ empty: 'New Note' }),
+  user    : new RelationField({ relation: User }),
+  deleted : new DefaultField({ empty: false })
 });
 
 
