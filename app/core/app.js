@@ -73,15 +73,14 @@ var FieldModel = Class.extend({
     this.name = name;
   },
   get: function() {
-    var value;
     if (this[this.name]) {
-      value = this[this.name];
+      this[this.name] = this[this.name];
     } else if(typeof this.defaultValue === 'function') {
-      value = this.defaultValue();
+      this[this.name] = this.defaultValue();
     } else {
-      value = this.defaultValue;
+      this[this.name] = this.defaultValue;
     }
-    return value;
+    return this[this.name];
   },
   set: function(value) {
     this[this.name] = value;
@@ -104,9 +103,6 @@ var RelationField = FieldModel.extend({
     options = options || {};
     this._super(options);
     this.relationObject = options.relation;
-  },
-  get: function() {
-    return new this.relationObject();
   },
   set: function(value) {
     if(value instanceof this.relationObject) {
@@ -137,12 +133,26 @@ var DocumentModel = Class.extend({
     }
   },
 
+  toObject: function() {
+    var object = {};
+
+    for (var key in this) {
+      if (this[key] !== 'function') {
+        if(this.hasOwnProperty(key)) {
+          object[key] = this[key];
+        }
+      }
+    }
+
+    return object;
+  },
   save: function() {},
   update: function() {},
   remove: function() {}
 });
 
 var User = DocumentModel.extend({
+  id       : new DefaultField({ empty: 10 }),
   username : new DefaultField(),
   email    : new DefaultField(),
   name     : new DefaultField()
@@ -159,5 +169,18 @@ var Note = DocumentModel.extend({
 var note = new Note();
 var user = new User();
 
-note.user = 10;
+// User set as object
+note.user = user;
+// Retrieved as id
 console.log(note.user);
+
+// Turns instance into an object to save on DB
+console.log(note.toObject());
+
+// instances have time_created field and generates value when accessed
+console.log(note.time_created);
+// Instance keeps time created value second time it's called
+setTimeout(function(){
+  console.log(note.time_created);
+  console.log(note.time_updated);
+}, 50);
