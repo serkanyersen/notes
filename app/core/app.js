@@ -125,10 +125,10 @@ var DocumentModel = Class.extend({
 
     init: function(data) {
         this._createFields();
-        this._setData(data);
+        this.setData(data);
     },
 
-    _setData: function(data) {
+    setData: function(data) {
         for (var key in data) {
             this[key] = data[key];
         }
@@ -138,7 +138,7 @@ var DocumentModel = Class.extend({
         if(this.id) {
             var ref = this._getFirebaseRef();
             ref.on('value', function(snapshot) {
-                this._setData(snapshot.val());
+                this.setData(snapshot.val());
                 this.id = snapshot.name();
             }.bind(this));
         }
@@ -193,10 +193,13 @@ var DocumentModel = Class.extend({
         var ref, newRef;
 
         if(data) {
-            this._setData(data);
+            this.setData(data);
         }
 
         ref = this._getFirebaseRef();
+
+        // Update time
+        this.time_updated = +(new Date());
 
         if (this.id) {
             ref.update(this.toObject());
@@ -215,6 +218,95 @@ var DocumentModel = Class.extend({
     }
 });
 
+var ListModel = Class.extend({
+    items: [],
+    Model: DocumentModel,
+
+    init: function(options) {
+        options = options || {};
+        this.setData(options);
+        this._setListener();
+    },
+
+    setData: function(data) {
+        for (var key in data) {
+            this[key] = data[key];
+        }
+    },
+
+    _getFirebaseRef: function() {
+        var firebase = "https://intense-fire-5583.firebaseio.com",
+            path = this.getPath(),
+            ref;
+        console.log(firebase + path);
+        ref = new Firebase(firebase + path);
+
+        return ref;
+    },
+
+    _setListener: function () {
+        var ref = this._getFirebaseRef();
+
+        ref.on('value', function() {
+            // all items are read
+        }, function() {
+            // could not read items
+        });
+
+        ref.on('child_added', function(snapshot) {
+            this.addItem(snapshot.val());
+        }.bind(this));
+
+        ref.on('child_removed', function(snapshot) {
+            this.removeItem(snapshot.name());
+        }.bind(this));
+
+        ref.on('child_changed', function(snapshot) {
+            this.updateItem(snapshot.name(), snapshot.val());
+        });
+    },
+
+    indexOf: function(id) {
+        var result = false;
+        this.items.forEach(function(item, i) {
+            if (item.id === id) {
+                result = i;
+            }
+        });
+        return result;
+    },
+
+    addItem: function(data) {
+        this.items.push(new this.Model(data));
+        // trigger add event
+    },
+
+    removeItem: function(id) {
+        var index = this.indexOf(id);
+        if (index) {
+            this.items.splice(index, 1);
+        }
+        // trigger removed event
+    },
+
+    updateItem: function(id, data) {
+        var index = this.indexOf(id);
+        if (index) {
+            // update the item with received data
+            this.items[index].setData(data);
+        }
+        // trigger item updated event
+    },
+
+    getPath: function() {
+        if (typeof this.path === 'function') {
+            return this.path();
+        } else {
+            return this.path;
+        }
+    }
+});
+
 var User = DocumentModel.extend({
     path: '/Users/',
     username: new DefaultField(),
@@ -228,10 +320,38 @@ var Note = DocumentModel.extend({
     title: new DefaultField({ empty: 'Untitled' }),
     body: new DefaultField({ empty: 'New Note' }),
     user: new RelationField({ relation: User }),
-    deleted: new DefaultField({ empty: false })
+    deleted: new DefaultField({ empty: false }),
+    trash: function() {
+        this.save({
+            deleted: true
+        });
+    },
+    untrash: function() {
+        this.save({
+            deleted: false
+        });
+    }
 });
 
+var NoteList = ListModel.extend({
+    Model: Note,
 
+    path: function() {
+        return '/Notes/' + this.user.id + '/';
+    },
+
+    getNotes: function() {
+
+    },
+
+    getTrash: function() {
+
+    },
+
+    cleanTrash: function() {
+
+    }
+});
 
 // =========================
 // App
@@ -241,6 +361,7 @@ auth = new FirebaseSimpleLogin(noteRef, function(error, user) {
     // an error occurred while attempting login
   } else if (user) {
     this.user = new User(user);
+    this.list = new NoteList({ user: this.user });
   } else {
 
   }
