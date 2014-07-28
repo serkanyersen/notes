@@ -23,28 +23,27 @@
         initializing = false;
 
         // Copy the properties over onto the new prototype
-        for (var name in prop) {
+        Object.keys(prop).forEach(function(name) {
             // Check if we're overwriting an existing function
             prototype[name] = typeof prop[name] === "function" &&
                 typeof _super[name] === "function" && fnTest.test(prop[name]) ?
                 (function(name, fn) {
-                return function() {
-                    var tmp = this._super;
+                    return function() {
+                        var tmp = this._super;
 
-                    // Add a new ._super() method that is the same method
-                    // but on the super-class
-                    this._super = _super[name];
+                        // Add a new ._super() method that is the same method
+                        // but on the super-class
+                        this._super = _super[name];
 
-                    // The method only need to be bound temporarily, so we
-                    // remove it when we're done executing
-                    var ret = fn.apply(this, arguments);
-                    this._super = tmp;
+                        // The method only need to be bound temporarily, so we
+                        // remove it when we're done executing
+                        var ret = fn.apply(this, arguments);
+                        this._super = tmp;
 
-                    return ret;
-                };
-            })(name, prop[name]) :
-                prop[name];
-        }
+                        return ret;
+                    };
+                })(name, prop[name]) : prop[name];
+        });
 
         // The dummy class constructor
         function Class() {
@@ -66,6 +65,61 @@
     };
 })();
 
+var PubSubClass = Class.extend({
+    __listeners: {},
+
+    on: function(name, callback, context) {
+        var names = name.split(/\s+/);
+        names.forEach(function(name) {
+            if (!this.__listeners[name]) {
+                this.__listeners[name] = [];
+            }
+            this.__listeners[name].push(callback.bind(context || this));
+        }.bind(this));
+
+        return this;
+    },
+
+    fire: function(name) {
+        var names = name.split(/\s+/),
+            memo = Array.prototype.slice.call(arguments);
+        memo.shift();
+        names.forEach(function(name) {
+            if (this.__listeners[name]) {
+                this.__listeners[name].forEach(function(callback) {
+                    if (memo) {
+                        callback.apply(this, memo);
+                    } else {
+                        callback.call(this);
+                    }
+                });
+            }
+        }.bind(this));
+
+        return this;
+    },
+
+    off: function(name, callbackToRemove) {
+        var eventIndex = false;
+
+        // Find and remove specific callback
+        if (callbackToRemove) {
+            (this.__listeners[name] || []).forEach(function(func, i) {
+                if (func === callbackToRemove) {
+                    eventIndex = i;
+                }
+            });
+            if (eventIndex !== false) {
+                this.__listeners[name].splice(eventIndex, 1);
+            }
+        } else {
+            // Empty out all callbacks for given event
+            this.__listeners[name] = [];
+        }
+
+        return this;
+    }
+});
 
 var FieldModel = Class.extend({
     init: function(options) {
@@ -119,7 +173,7 @@ var RelationField = FieldModel.extend({
 
 var DefaultField = FieldModel.extend({});
 
-var DocumentModel = Class.extend({
+var DocumentModel = PubSubClass.extend({
     time_created: new DefaultField({ empty: function() { return +(new Date()); }}),
     time_updated: new DefaultField({ empty: function() { return +(new Date()); }}),
 
@@ -135,11 +189,12 @@ var DocumentModel = Class.extend({
     },
 
     _setListener: function () {
-        if(this.id) {
+        if (this.id) {
             var ref = this._getFirebaseRef();
             ref.on('value', function(snapshot) {
                 this.setData(snapshot.val());
                 this.id = snapshot.name();
+                this.fire('read');
             }.bind(this));
         }
     },
@@ -203,22 +258,22 @@ var DocumentModel = Class.extend({
 
         if (this.id) {
             ref.update(this.toObject());
-            // This is update event
+            this.fire('updated', ref);
         } else {
             newRef = ref.push(this.toObject());
             this.id = newRef.name();
-            // this is a new event
+            this.fire('created', newRef);
         }
     },
 
     remove: function() {
         var ref = this._getFirebaseRef();
         ref.remove();
-        // this is remove item event
+        this.fire('removed', ref);
     }
 });
 
-var ListModel = Class.extend({
+var ListModel = PubSubClass.extend({
     items: [],
     Model: DocumentModel,
 
@@ -226,6 +281,14 @@ var ListModel = Class.extend({
         options = options || {};
         this.setData(options);
         this._setListener();
+    },
+
+    getPath: function() {
+        if (typeof this.path === 'function') {
+            return this.path();
+        } else {
+            return this.path;
+        }
     },
 
     setData: function(data) {
@@ -238,20 +301,24 @@ var ListModel = Class.extend({
         var firebase = "https://intense-fire-5583.firebaseio.com",
             path = this.getPath(),
             ref;
-        console.log(firebase + path);
+
         ref = new Firebase(firebase + path);
 
         return ref;
     },
 
+    _listReadSuccess: function(snapshot) {
+        this.fire('read', snapshot);
+    },
+
+    _listReadFail: function() {
+        this.fire('notread');
+    },
+
     _setListener: function () {
         var ref = this._getFirebaseRef();
 
-        ref.on('value', function() {
-            // all items are read
-        }, function() {
-            // could not read items
-        });
+        ref.on('value', this._listReadSuccess, this._listReadFail);
 
         ref.on('child_added', function(snapshot) {
             this.addItem(snapshot.val());
@@ -277,32 +344,26 @@ var ListModel = Class.extend({
     },
 
     addItem: function(data) {
-        this.items.push(new this.Model(data));
-        // trigger add event
+        var model = new this.Model(data);
+        this.items.push(model);
+        this.fire('child:added', model);
     },
 
     removeItem: function(id) {
-        var index = this.indexOf(id);
+        var index = this.indexOf(id),
+            removedChild;
+
         if (index) {
-            this.items.splice(index, 1);
+            removedChild = this.items.splice(index, 1);
+            this.fire('child:removed', removedChild[0]);
         }
-        // trigger removed event
     },
 
     updateItem: function(id, data) {
         var index = this.indexOf(id);
         if (index) {
-            // update the item with received data
             this.items[index].setData(data);
-        }
-        // trigger item updated event
-    },
-
-    getPath: function() {
-        if (typeof this.path === 'function') {
-            return this.path();
-        } else {
-            return this.path;
+            this.fire('child:updated', this.items[index]);
         }
     }
 });
@@ -322,14 +383,10 @@ var Note = DocumentModel.extend({
     user: new RelationField({ relation: User }),
     deleted: new DefaultField({ empty: false }),
     trash: function() {
-        this.save({
-            deleted: true
-        });
+        this.save({ deleted: true });
     },
     untrash: function() {
-        this.save({
-            deleted: false
-        });
+        this.save({ deleted: false });
     }
 });
 
@@ -360,7 +417,10 @@ auth = new FirebaseSimpleLogin(noteRef, function(error, user) {
   if (error) {
     // an error occurred while attempting login
   } else if (user) {
+
     this.user = new User(user);
+    this.user.save();
+
     this.list = new NoteList({ user: this.user });
   } else {
 
